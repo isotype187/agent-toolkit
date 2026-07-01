@@ -19,16 +19,22 @@ def run():
     root = context.root
 
     try:
-        subprocess.run(["git", "add", "."], cwd=root)
+        subprocess.run(["git", "add", "."], cwd=root, check=False)
 
         subprocess.run(
             ["git", "commit", "-m", "auto commit"],
-            cwd=root
+            cwd=root,
+            check=False
         )
 
-        subprocess.run(["git", "push"], cwd=root)
+        subprocess.run(["git", "push"], cwd=root, check=False)
 
-        return "Git push complete"
+        result = "Git push complete"
 
     except Exception as e:
-        return f"Git error: {e}"
+        result = f"Git error: {e}"
+
+    context.tool_outputs["Git Push"] = result
+    context.tool_history.append({"tool": "Git Push", "result": result})
+
+    return result
