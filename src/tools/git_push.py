@@ -16,25 +16,24 @@ def category():
 
 def run():
 
-    root = context.root
-
     try:
-        subprocess.run(["git", "add", "."], cwd=root, check=False)
+        subprocess.run(["git", "add", "."], cwd=context.root, check=False)
 
         subprocess.run(
             ["git", "commit", "-m", "auto commit"],
-            cwd=root,
+            cwd=context.root,
             check=False
         )
 
-        subprocess.run(["git", "push"], cwd=root, check=False)
+        subprocess.run(["git", "push"], cwd=context.root, check=False)
 
         result = "Git push complete"
+        status = "success"
 
     except Exception as e:
         result = f"Git error: {e}"
+        status = "error"
 
-    context.tool_outputs["Git Push"] = result
-    context.tool_history.append({"tool": "Git Push", "result": result})
+    context.log("Git Push", result, status)
 
     return result
