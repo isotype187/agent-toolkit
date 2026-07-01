@@ -1,11 +1,5 @@
 import subprocess
-import sys
-import os
-
-# ensure src is visible
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-from context import context
+from src.context import context
 
 
 def name():
@@ -13,21 +7,28 @@ def name():
 
 
 def description():
-    return "Pushes current project using context-aware root"
+    return "Stages, commits, and pushes all changes to GitHub"
+
+
+def category():
+    return "Git"
 
 
 def run():
 
     root = context.root
 
-    status = context.git_status()
+    try:
+        subprocess.run(["git", "add", "."], cwd=root)
 
-    if not status:
-        return "Nothing to commit"
+        subprocess.run(
+            ["git", "commit", "-m", "auto commit"],
+            cwd=root
+        )
 
+        subprocess.run(["git", "push"], cwd=root)
 
-    subprocess.run(["git", "add", "."], cwd=root)
-    subprocess.run(["git", "commit", "-m", "auto commit"], cwd=root)
-    subprocess.run(["git", "push"], cwd=root)
+        return "Git push complete"
 
-    return "Push complete"
+    except Exception as e:
+        return f"Git error: {e}"
