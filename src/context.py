@@ -5,27 +5,24 @@ class Context:
         self.root = r"C:\Users\isoty\dev\repos\agent-toolkit"
         self.events = []
         self.tool_outputs = {}
-        self._last_event_hash = None
+        self._locks = {}
 
     def log(self, tool, result, status="success"):
-
-        event = {
+        self.events.append({
             "tool": tool,
-            "result": result,
+            "result": str(result),
             "status": status,
             "time": datetime.now().strftime("%H:%M:%S")
-        }
+        })
 
-        # ?? HARD DEDUPE (prevents identical double logs)
-        event_hash = f"{tool}:{result}:{status}"
+    def lock_tool(self, tool):
+        if self._locks.get(tool):
+            return False
+        self._locks[tool] = True
+        return True
 
-        if event_hash == self._last_event_hash:
-            return
-
-        self._last_event_hash = event_hash
-
-        self.events.append(event)
-        self.tool_outputs[tool] = result
+    def unlock_tool(self, tool):
+        self._locks[tool] = False
 
 
 context = Context()

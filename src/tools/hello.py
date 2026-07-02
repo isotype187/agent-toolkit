@@ -1,11 +1,15 @@
 def name():
     return "Hello Tool"
 
+
 def description():
     return "Test tool that returns a message"
+
 
 def category():
     return "Test"
 
-def run():
+
+# ?? STANDARDIZED SIGNATURE
+def run(args=None):
     return "Hello from tool system"

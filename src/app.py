@@ -1,12 +1,12 @@
-import time
-import uuid
+import threading
 from flask import Flask, render_template_string, redirect, url_for, request
 from src.tool_loader import load_tools
 from src.context import context
+from src.tool_safety import check_tool, parse_args
+from src.auth import get_user_role, can_run
+from src.executor import executor
 
 app = Flask(__name__)
-
-DEBUG_RUNS = []
 
 
 HTML = """
@@ -18,21 +18,22 @@ HTML = """
 <style>
 body { background:#111; color:white; font-family:Arial; padding:30px; }
 .tool { background:#222; padding:15px; margin:15px 0; border-radius:10px; }
-button { padding:10px 15px; cursor:pointer; }
+input { padding:8px; width:90%; }
+button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 </style>
 </head>
 
 <body>
 
-<h1>?? Agent Toolkit</h1>
+<h1>?? Agent Toolkit (Stable Core)</h1>
 
 {% for tool in tools %}
 <div class="tool">
     <h2>{{ tool.name }}</h2>
     <p>{{ tool.description }}</p>
-    <p><b>Category:</b> {{ tool.category }}</p>
 
     <form action="/run/{{ tool.name }}" method="post">
+        <input name="args" placeholder='JSON args'>
         <button type="submit">Run Tool</button>
     </form>
 </div>
@@ -51,65 +52,111 @@ button { padding:10px 15px; cursor:pointer; }
 </div>
 {% endfor %}
 
-<hr>
+<script>
+const source = new EventSource("/stream");
 
-<h2>?? DEBUG RUN TRACE</h2>
+source.onmessage = function(event) {
+    const data = JSON.parse(event.data);
 
-{% for d in debug %}
-<div class="tool">
-    {{ d }}
-</div>
-{% endfor %}
+    const div = document.createElement("div");
+    div.className = "tool";
 
+    div.innerHTML =
+        "<b>" + data.time + "</b><br>" +
+        "<b>" + data.tool + "</b><br>" +
+        data.result + "<br>" +
+        "<i>Status: " + data.status + "</i>";
+
+    document.body.appendChild(div);
+};
+</script>
 </body>
 </html>
 """
 
 
+def execute(tool_name, fn, args):
+    try:
+        result = fn(args)
+        context.log(tool_name, result, "success")
+    except Exception as e:
+        context.log(tool_name, str(e), "error")
+    finally:
+        executor.stop(tool_name)
+        context.unlock_tool(tool_name)
+
+
 @app.route("/")
 def home():
-    tools = load_tools()
-
     return render_template_string(
         HTML,
-        tools=tools,
-        history=context.events,
-        debug=DEBUG_RUNS
+        tools=load_tools(),
+        history=context.events
     )
 
 
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
 
-    req_id = str(uuid.uuid4())
+    role = get_user_role()
 
-    DEBUG_RUNS.append(f"ENTER run_tool | tool={tool_name} | req={req_id}")
+    if not can_run(tool_name, role):
+        context.log(tool_name, "BLOCKED (role)", "blocked")
+        return redirect(url_for("home"))
+
+    policy = check_tool(tool_name)
+
+    if not policy["allowed"]:
+        context.log(tool_name, "BLOCKED (policy)", "blocked")
+        return redirect(url_for("home"))
+
+    # ?? HARD SAFETY GATE
+    if not executor.can_run(tool_name, cooldown=2):
+        context.log(tool_name, "BLOCKED (spam/cooldown)", "blocked")
+        return redirect(url_for("home"))
+
+    executor.start(tool_name)
+
+    args = parse_args(request.form.get("args", ""))
 
     tools = load_tools()
 
-    matches = 0
+    target = next((t for t in tools if t["name"] == tool_name), None)
 
-    for tool in tools:
-        if tool["name"] == tool_name:
-            matches += 1
+    if not target:
+        context.log(tool_name, "TOOL NOT FOUND", "error")
+        executor.stop(tool_name)
+        return redirect(url_for("home"))
 
-            try:
-                result = tool["run"]()
-                context.log(tool_name, result, "success")
-            except Exception as e:
-                context.log(tool_name, str(e), "error")
-
-    DEBUG_RUNS.append(
-        f"EXIT run_tool | tool={tool_name} | req={req_id} | matches={matches}"
+    thread = threading.Thread(
+        target=execute,
+        args=(tool_name, target["run"], args)
     )
+    thread.start()
 
     return redirect(url_for("home"))
 
 
-if __name__ == "__main__":
+@app.route("/stream")
+def stream():
+    import json
+    def event_stream():
+        last_index = 0
+        while True:
+            if len(context.events) > last_index:
+                data = context.events[last_index]
+                last_index += 1
+                yield "data: " + json.dumps(data) + "\n\n"
+
+    return app.response_class(event_stream(), mimetype="text/event-stream")
+
+if __name__ == '__main__':
     app.run(
         host="127.0.0.1",
         port=5000,
         debug=False,
-        use_reloader=False
+        use_reloader=False,
+        threaded=True
     )
+
+
