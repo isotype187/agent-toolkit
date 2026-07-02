@@ -16,7 +16,7 @@ HTML = """
 
 <style>
 body { background:#111; color:white; font-family:Arial; padding:30px; }
-.tool { background:#222; padding:15px; margin:15px 0; border-radius:10px; }
+.tool { margin-bottom: 12px;  background:#222; padding:15px; margin:15px 0; border-radius:10px; }
 input { padding:8px; width:90%; }
 button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 </style>
@@ -42,14 +42,7 @@ button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 
 <h2>?? Event Log</h2>
 
-{% for event in history %}
-<div class="tool">
-    <b>{{ event.time }}</b><br>
-    <b>{{ event.tool }}</b><br>
-    {{ event.result }}<br>
-    <i>Status: {{ event.status }}</i>
-</div>
-{% endfor %}
+{% for event in history %}<div class="tool"><b>{{ event.time }}</b><br>{{ event.tool }}<br>{{ event.result }}<br><i>Status: {{ event.status }}</i></div>{% endfor %}
 
 </body>
 </html>
@@ -122,5 +115,7 @@ if __name__ == "__main__":
         use_reloader=False,
         threaded=True
     )
+
+
 
 
