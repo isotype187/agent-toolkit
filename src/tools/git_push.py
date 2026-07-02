@@ -35,26 +35,14 @@ def run():
             check=False
         )
 
-        # ?? CLEAN OUTPUT (no duplication, no raw spam)
-        output_parts = []
+        # ?? ONLY KEEP MEANINGFUL INFO
+        result = "Git push completed successfully"
 
-        if commit.stdout:
-            output_parts.append(commit.stdout.strip())
+        if commit.returncode != 0:
+            result += "\nCommit had warnings/errors"
 
-        if push.stdout:
-            output_parts.append(push.stdout.strip())
-
-        if commit.stderr:
-            output_parts.append(commit.stderr.strip())
-
-        if push.stderr:
-            output_parts.append(push.stderr.strip())
-
-        result = "\n".join([p for p in output_parts if p])
-
-        # fallback if empty
-        if not result:
-            result = "Git push completed"
+        if push.returncode != 0:
+            result += "\nPush had warnings/errors"
 
         status = "success"
 
