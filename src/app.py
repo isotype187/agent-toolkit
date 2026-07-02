@@ -1,4 +1,18 @@
 import time
+
+_last_request = {}
+
+def is_duplicate(tool_name):
+    now = time.time()
+    last = _last_request.get(tool_name, 0)
+
+    if now - last < 0.8:
+        return True
+
+    _last_request[tool_name] = now
+    return False
+
+import time
 import threading
 from flask import Flask, render_template_string, redirect, url_for, request
 
@@ -13,17 +27,7 @@ app = Flask(__name__)
 # =========================
 # DUPLICATE REQUEST GUARD
 # =========================
-_last_request = {}
 
-def is_duplicate(tool_name):
-    now = time.time()
-    last = _last_request.get(tool_name, 0)
-
-    if now - last < 0.8:
-        return True
-
-    _last_request[tool_name] = now
-    return False
 
 
 HTML = """
@@ -98,7 +102,6 @@ def run_tool(tool_name):
 
     # prevent browser double-submit spam
     if is_duplicate(tool_name):
-        context.log(tool_name, "BLOCKED (duplicate request)", "blocked")
         return redirect(url_for("home"))
 
     role = get_user_role()
@@ -145,3 +148,6 @@ if __name__ == "__main__":
         threaded=True,
         use_reloader=False
     )
+
+
+
