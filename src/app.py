@@ -1,18 +1,4 @@
-import time
-
-_last_request = {}
-
-def is_duplicate(tool_name):
-    now = time.time()
-    last = _last_request.get(tool_name, 0)
-
-    if now - last < 0.8:
-        return True
-
-    _last_request[tool_name] = now
-    return False
-
-import time
+import uuid
 import threading
 from flask import Flask, render_template_string, redirect, url_for, request
 
@@ -25,9 +11,9 @@ from src.executor import executor
 app = Flask(__name__)
 
 # =========================
-# DUPLICATE REQUEST GUARD
+# REQUEST DEDUPLICATION STORE
 # =========================
-
+app.seen_requests = set()
 
 
 HTML = """
@@ -42,21 +28,6 @@ body { background:#111; color:white; font-family:Arial; padding:30px; }
 input { padding:8px; width:90%; }
 button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 </style>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    const forms = document.querySelectorAll("form");
-
-    forms.forEach(form => {
-        form.addEventListener("submit", () => {
-            const btn = form.querySelector("button");
-            if (btn) {
-                btn.disabled = true;
-                btn.innerText = "Running...";
-            }
-        });
-    });
-});
-</script>
 </head>
 
 <body>
@@ -69,7 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
     <p>{{ tool.description }}</p>
 
     <form action="/run/{{ tool.name }}" method="post">
-        <input name="args" placeholder='JSON args'>
+        <input name="args" placeholder="JSON args">
+        <input type="hidden" name="request_id" value="{{ uuid4() }}">
         <button type="submit">Run Tool</button>
     </form>
 </div>
@@ -108,17 +80,30 @@ def home():
     return render_template_string(
         HTML,
         tools=load_tools(),
-        history=list(context.events)
+        history=list(context.events),
+        uuid4=uuid.uuid4
     )
 
 
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
 
-    # prevent browser double-submit spam
-    if is_duplicate(tool_name):
+    # =========================
+    # DEDUPLICATION (REAL FIX)
+    # =========================
+    request_id = request.form.get("request_id")
+
+    if not request_id:
         return redirect(url_for("home"))
 
+    if request_id in app.seen_requests:
+        return redirect(url_for("home"))
+
+    app.seen_requests.add(request_id)
+
+    # =========================
+    # AUTH + TOOL EXECUTION
+    # =========================
     role = get_user_role()
     args = parse_args(request.form.get("args", ""))
 
@@ -163,7 +148,3 @@ if __name__ == "__main__":
         threaded=True,
         use_reloader=False
     )
-
-
-
-
