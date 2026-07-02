@@ -1,11 +1,10 @@
-import time
-from flask import Flask, render_template_string, redirect, url_for
+from flask import Flask, render_template_string, redirect, url_for, session, request
+from uuid import uuid4
 from src.tool_loader import load_tools
 from src.context import context
 
 app = Flask(__name__)
-
-_last_run = {}
+app.secret_key = "dev-secret"
 
 
 HTML = """
@@ -31,7 +30,6 @@ body {
 
 button {
     padding:10px 15px;
-    cursor:pointer;
 }
 </style>
 
@@ -75,6 +73,9 @@ button {
 def home():
     tools = load_tools()
 
+    if "seen_tokens" not in session:
+        session["seen_tokens"] = []
+
     return render_template_string(
         HTML,
         tools=tools,
@@ -85,14 +86,19 @@ def home():
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
 
-    # HARD DEDUP LOCK (prevents double execution completely)
-    now = time.time()
+    token = request.form.get("token")
 
-    last = _last_run.get(tool_name, 0)
-    if now - last < 1.0:
+    if not token:
+        token = str(uuid4())
+
+    if "seen_tokens" not in session:
+        session["seen_tokens"] = []
+
+    # prevent duplicate execution
+    if token in session["seen_tokens"]:
         return redirect(url_for("home"))
 
-    _last_run[tool_name] = now
+    session["seen_tokens"].append(token)
 
     tools = load_tools()
 
