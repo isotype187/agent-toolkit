@@ -42,6 +42,21 @@ body { background:#111; color:white; font-family:Arial; padding:30px; }
 input { padding:8px; width:90%; }
 button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 </style>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const forms = document.querySelectorAll("form");
+
+    forms.forEach(form => {
+        form.addEventListener("submit", () => {
+            const btn = form.querySelector("button");
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = "Running...";
+            }
+        });
+    });
+});
+</script>
 </head>
 
 <body>
@@ -148,6 +163,7 @@ if __name__ == "__main__":
         threaded=True,
         use_reloader=False
     )
+
 
 
 
