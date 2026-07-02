@@ -1,10 +1,12 @@
-from flask import Flask, render_template_string, redirect, url_for, session, request
-from uuid import uuid4
+import time
+import uuid
+from flask import Flask, render_template_string, redirect, url_for, request
 from src.tool_loader import load_tools
 from src.context import context
 
 app = Flask(__name__)
-app.secret_key = "dev-secret"
+
+DEBUG_RUNS = []
 
 
 HTML = """
@@ -14,25 +16,10 @@ HTML = """
 <title>Agent Toolkit</title>
 
 <style>
-body {
-    background:#111;
-    color:white;
-    font-family:Arial;
-    padding:30px;
-}
-
-.tool {
-    background:#222;
-    padding:15px;
-    margin:15px 0;
-    border-radius:10px;
-}
-
-button {
-    padding:10px 15px;
-}
+body { background:#111; color:white; font-family:Arial; padding:30px; }
+.tool { background:#222; padding:15px; margin:15px 0; border-radius:10px; }
+button { padding:10px 15px; cursor:pointer; }
 </style>
-
 </head>
 
 <body>
@@ -64,6 +51,16 @@ button {
 </div>
 {% endfor %}
 
+<hr>
+
+<h2>?? DEBUG RUN TRACE</h2>
+
+{% for d in debug %}
+<div class="tool">
+    {{ d }}
+</div>
+{% endfor %}
+
 </body>
 </html>
 """
@@ -73,43 +70,38 @@ button {
 def home():
     tools = load_tools()
 
-    if "seen_tokens" not in session:
-        session["seen_tokens"] = []
-
     return render_template_string(
         HTML,
         tools=tools,
-        history=context.events
+        history=context.events,
+        debug=DEBUG_RUNS
     )
 
 
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
 
-    token = request.form.get("token")
+    req_id = str(uuid.uuid4())
 
-    if not token:
-        token = str(uuid4())
-
-    if "seen_tokens" not in session:
-        session["seen_tokens"] = []
-
-    # prevent duplicate execution
-    if token in session["seen_tokens"]:
-        return redirect(url_for("home"))
-
-    session["seen_tokens"].append(token)
+    DEBUG_RUNS.append(f"ENTER run_tool | tool={tool_name} | req={req_id}")
 
     tools = load_tools()
 
+    matches = 0
+
     for tool in tools:
         if tool["name"] == tool_name:
+            matches += 1
+
             try:
                 result = tool["run"]()
                 context.log(tool_name, result, "success")
             except Exception as e:
                 context.log(tool_name, str(e), "error")
-            break
+
+    DEBUG_RUNS.append(
+        f"EXIT run_tool | tool={tool_name} | req={req_id} | matches={matches}"
+    )
 
     return redirect(url_for("home"))
 
