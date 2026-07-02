@@ -85,11 +85,12 @@ def home():
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
 
-    # debounce lock (prevents double-click / browser spam)
+    # HARD DEDUP LOCK (prevents double execution completely)
     now = time.time()
-    if tool_name in _last_run:
-        if now - _last_run[tool_name] < 1.0:
-            return redirect(url_for("home"))
+
+    last = _last_run.get(tool_name, 0)
+    if now - last < 1.0:
+        return redirect(url_for("home"))
 
     _last_run[tool_name] = now
 
