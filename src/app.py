@@ -8,7 +8,6 @@ from src.executor import executor
 
 app = Flask(__name__)
 
-
 HTML = """
 <!DOCTYPE html>
 <html>
@@ -25,7 +24,7 @@ button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 
 <body>
 
-<h1>?? Agent Toolkit (Stable Core)</h1>
+<h1>?? Agent Toolkit</h1>
 
 {% for tool in tools %}
 <div class="tool">
@@ -52,28 +51,9 @@ button { padding:10px 15px; cursor:pointer; margin-top:5px; }
 </div>
 {% endfor %}
 
-<script>
-const source = new EventSource("/stream");
-
-source.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-
-    const div = document.createElement("div");
-    div.className = "tool";
-
-    div.innerHTML =
-        "<b>" + data.time + "</b><br>" +
-        "<b>" + data.tool + "</b><br>" +
-        data.result + "<br>" +
-        "<i>Status: " + data.status + "</i>";
-
-    document.body.appendChild(div);
-};
-</script>
 </body>
 </html>
 """
-
 
 def execute(tool_name, fn, args):
     try:
@@ -99,6 +79,7 @@ def home():
 def run_tool(tool_name):
 
     role = get_user_role()
+    args = parse_args(request.form.get("args", ""))
 
     if not can_run(tool_name, role):
         context.log(tool_name, "BLOCKED (role)", "blocked")
@@ -110,17 +91,13 @@ def run_tool(tool_name):
         context.log(tool_name, "BLOCKED (policy)", "blocked")
         return redirect(url_for("home"))
 
-    # ?? HARD SAFETY GATE
-    if not executor.can_run(tool_name, cooldown=2):
+    if not executor.can_run(tool_name, args, cooldown=2):
         context.log(tool_name, "BLOCKED (spam/cooldown)", "blocked")
         return redirect(url_for("home"))
 
-    executor.start(tool_name)
-
-    args = parse_args(request.form.get("args", ""))
+    executor.start(tool_name, args)
 
     tools = load_tools()
-
     target = next((t for t in tools if t["name"] == tool_name), None)
 
     if not target:
@@ -137,20 +114,7 @@ def run_tool(tool_name):
     return redirect(url_for("home"))
 
 
-@app.route("/stream")
-def stream():
-    import json
-    def event_stream():
-        last_index = 0
-        while True:
-            if len(context.events) > last_index:
-                data = context.events[last_index]
-                last_index += 1
-                yield "data: " + json.dumps(data) + "\n\n"
-
-    return app.response_class(event_stream(), mimetype="text/event-stream")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(
         host="127.0.0.1",
         port=5000,
@@ -158,5 +122,3 @@ if __name__ == '__main__':
         use_reloader=False,
         threaded=True
     )
-
-

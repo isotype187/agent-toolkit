@@ -1,28 +1,37 @@
-import threading
 import time
 
 class Executor:
     def __init__(self):
         self.running = {}
         self.cooldowns = {}
+        self.last_signature = {}
 
-    def can_run(self, tool, cooldown=2):
+    def _signature(self, tool, args):
+        return f"{tool}:{str(args)}"
+
+    def can_run(self, tool, args, cooldown=2):
         now = time.time()
 
-        # cooldown check
-        last = self.cooldowns.get(tool, 0)
-        if now - last < cooldown:
+        sig = self._signature(tool, args)
+
+        # ?? block duplicate identical calls instantly
+        if self.last_signature.get(tool) == sig:
             return False
 
-        # already running check
+        # cooldown protection
+        if now - self.cooldowns.get(tool, 0) < cooldown:
+            return False
+
+        # running lock
         if self.running.get(tool):
             return False
 
         return True
 
-    def start(self, tool):
+    def start(self, tool, args):
         self.running[tool] = True
         self.cooldowns[tool] = time.time()
+        self.last_signature[tool] = self._signature(tool, args)
 
     def stop(self, tool):
         self.running[tool] = False
