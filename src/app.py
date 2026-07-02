@@ -1,8 +1,11 @@
+import time
 from flask import Flask, render_template_string, redirect, url_for
 from src.tool_loader import load_tools
 from src.context import context
 
 app = Flask(__name__)
+
+_last_run = {}
 
 
 HTML = """
@@ -28,6 +31,7 @@ body {
 
 button {
     padding:10px 15px;
+    cursor:pointer;
 }
 </style>
 
@@ -80,6 +84,15 @@ def home():
 
 @app.route("/run/<tool_name>", methods=["POST"])
 def run_tool(tool_name):
+
+    # debounce lock (prevents double-click / browser spam)
+    now = time.time()
+    if tool_name in _last_run:
+        if now - _last_run[tool_name] < 1.0:
+            return redirect(url_for("home"))
+
+    _last_run[tool_name] = now
+
     tools = load_tools()
 
     for tool in tools:
